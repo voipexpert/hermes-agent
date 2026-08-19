@@ -367,7 +367,11 @@ export function imageFilenameFromPath(filePath: string): string {
 
 // Remote gateway: the local composer-image file lives on THIS machine's disk,
 // not the gateway's, so read the bytes here and upload them via
-// image.attach_bytes. Returns null when the file can't be read.
+// image.attach_bytes. Returns null when the file can't be read. Uses the
+// attach-specific IPC reader (256 MiB), NOT the preview/Settings reader
+// (16 MiB default) — phone-camera photos routinely exceed 16 MiB and were
+// silently failing to attach while PDFs (already on the attach reader)
+// succeeded.
 //
 // `cachedDataUrl` is the attachment's `previewUrl` when the composer already
 // read the file for the chip thumbnail — that preview is the FULL file as a
@@ -387,7 +391,8 @@ export async function readImageForRemoteAttach(
     }
   }
 
-  const dataUrl = await window.hermesDesktop?.readFileDataUrl(filePath)
+  const reader = window.hermesDesktop?.readFileDataUrlForAttach ?? window.hermesDesktop?.readFileDataUrl
+  const dataUrl = await reader?.(filePath)
   const contentBase64 = dataUrl ? base64FromDataUrl(dataUrl) : ''
 
   return contentBase64 ? { contentBase64, filename: imageFilenameFromPath(filePath) } : null
